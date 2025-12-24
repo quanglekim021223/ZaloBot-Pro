@@ -1,6 +1,5 @@
 """Database configuration and session management"""
 from sqlmodel import SQLModel, create_engine, Session
-from zalobot.models import Order
 
 # SQLite database file
 DATABASE_URL = "sqlite:///zalobot.db"
@@ -11,6 +10,8 @@ engine = create_engine(DATABASE_URL, echo=True)
 
 def init_db():
     """Initialize database - create all tables"""
+    # Import models here to ensure they're registered with SQLModel
+    from zalobot.database.models import Order  # noqa: F401
     SQLModel.metadata.create_all(engine)
 
 
