@@ -1,4 +1,5 @@
 """FastAPI application entry point"""
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
@@ -10,11 +11,29 @@ from zalobot.routers import webhook, payment
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Create FastAPI app
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifespan context manager - handles startup and shutdown events
+    """
+    # Startup
+    logger.info("Initializing database...")
+    init_db()
+    logger.info("Database initialized successfully")
+    
+    yield  # App runs here
+    
+    # Shutdown 
+    logger.info("Shutting down...")
+
+
+# Create FastAPI app with lifespan
 app = FastAPI(
     title="ZaloBot Pro",
-    description="Hệ thống tự động bán sản phẩm số trên Zalo",
-    version="0.1.0"
+    description="System for selling digital products on Zalo",
+    version="0.1.0",
+    lifespan=lifespan
 )
 
 # CORS middleware (for development)
@@ -29,14 +48,6 @@ app.add_middleware(
 # Include routers
 app.include_router(webhook.router)
 app.include_router(payment.router)
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize database on startup"""
-    logger.info("Initializing database...")
-    init_db()
-    logger.info("Database initialized successfully")
 
 
 @app.get("/health")
