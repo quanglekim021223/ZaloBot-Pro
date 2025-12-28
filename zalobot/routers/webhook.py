@@ -12,13 +12,13 @@ router = APIRouter(prefix="/zalo", tags=["zalo"])
 
 async def process_webhook_background(body: dict):
     """
-    Xử lý logic nghiệp vụ ở background để không block request
+    Handle business logic in background to avoid blocking request
     
-    CRITICAL: Function này chạy sau khi đã trả lời 200 OK cho Zalo.
-    Nếu có lỗi ở đây, Zalo sẽ không retry vì đã nhận được 200 OK.
+    CRITICAL: This function runs after responding 200 OK to Zalo.
+    If there is an error here, Zalo will not retry because it has received 200 OK.
     """
     try:
-        # Parse user_id và text từ body (cấu trúc Zalo webhook)
+        # Parse user_id and text from body (Zalo webhook structure)
         sender = body.get("sender", {})
         user_id = sender.get("id")
         message = body.get("message", {})
@@ -28,14 +28,14 @@ async def process_webhook_background(body: dict):
             logger.warning("⚠️ No user_id found in webhook body")
             return
         
-        logger.info(f"📩 Background Task: Xử lý tin nhắn từ user_id={user_id}, text='{text}'")
+        logger.info(f"📩 Background Task: Handling message from user_id={user_id}, text='{text}'")
         
         # TODO: Logic bán hàng sẽ viết ở đây
         if "mua" in text.lower():
-            logger.info("👉 Phát hiện nhu cầu mua hàng -> Tạo Order...")
+            logger.info("👉 Detected purchase intent -> Create Order...")
             # create_order(user_id=user_id, text=text)
-            # Gọi MoMo API tạo payment link
-            # Gửi payment link cho khách qua Zalo API
+            # Call MoMo API to create payment link
+            # Send payment link to customer via Zalo API
             
     except KeyError as e:
         logger.error(f"❌ Missing key in webhook body: {e}")
@@ -50,45 +50,45 @@ async def zalo_webhook(
     x_zalo_signature: str = Header(None, alias="X-Zalo-Signature")
 ):
     """
-    Webhook nhận tin từ Zalo OA.
+    Webhook endpoint for receiving messages from Zalo OA.
     
-    CRITICAL: Phải phản hồi 200 OK trong vòng 3 giây.
-    Logic xử lý được đẩy vào background task để đảm bảo response nhanh.
+    CRITICAL: Must respond 200 OK within 3 seconds.
+    Logic processing is pushed into background task to ensure quick response.
     
-    Security: Verify signature từ Zalo để tránh fake requests.
+    Security: Verify signature from Zalo to prevent fake requests.
     """
-    # 1. Đọc Raw Bytes để verify signature (QUAN TRỌNG)
-    # Phải đọc body_bytes trước khi parse JSON
+    # 1. Read Raw Bytes to verify signature (CRITICAL)
+    # Must read body_bytes before parsing JSON
     body_bytes = await request.body()
     
     # 2. Check Security - Verify signature
     if x_zalo_signature:
         if not verify_zalo_signature(body_bytes, x_zalo_signature):
             logger.warning("⛔ Invalid Zalo Signature! Request rejected.")
-            # Trả về 403 để chặn hẳn (Zalo sẽ không retry với 403)
+            # Return 403 to block (Zalo will not retry with 403)
             raise HTTPException(status_code=403, detail="Invalid Signature")
     else:
-        # Trong dev/test mode, có thể cho qua nhưng log warning
-        # Trong production, nên reject nếu không có signature
+        # In dev/test mode, it can be allowed but log warning
+        # In production, it should be rejected if there is no signature
         logger.warning("⚠️ No X-Zalo-Signature header found. Allowing in dev mode.")
-        # Nếu muốn strict, uncomment dòng dưới:
+        # If you want to be strict, uncomment the line below:
         # raise HTTPException(status_code=403, detail="Missing Signature")
     
-    # 3. Parse JSON để xử lý logic
+    # 3. Parse JSON to process logic
     try:
         body = json.loads(body_bytes)
     except json.JSONDecodeError as e:
         logger.error(f"❌ Invalid JSON in webhook body: {e}")
         raise HTTPException(status_code=400, detail="Invalid JSON")
     
-    # Log để debug (chỉ log một phần để tránh spam)
+    # Log for debugging (only log a part to avoid spam)
     logger.info(f"✅ Verified webhook from Zalo: user_id={body.get('sender', {}).get('id', 'unknown')}")
     
-    # 4. Đẩy vào Background Task (Fire and Forget)
-    # Logic xử lý sẽ chạy sau khi đã trả lời 200 OK
+    # 4. Push into Background Task (Fire and Forget)
+    # Logic processing will run after responding 200 OK
     background_tasks.add_task(process_webhook_background, body)
     
-    # 5. Return 200 OK ngay lập tức (< 100ms)
-    # Zalo sẽ nhận được response nhanh, không timeout
+    # 5. Return 200 OK immediately (< 100ms)
+    # Zalo will receive response quickly, without timeout
     return {"status": "success"}
 

@@ -1,8 +1,10 @@
 """FastAPI application entry point"""
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import logging
+import os
 
 from zalobot.database import init_db
 from zalobot.routers import webhook, payment
@@ -65,3 +67,10 @@ async def root():
         "docs": "/docs"
     }
 
+@app.get("/zalo_verifierIyIx3Axv7nXLYQmYXunzU7w4qaQIyWOSCpKn.html")
+async def verify_domain():
+    file_path = "zalo_verifierIyIx3Axv7nXLYQmYXunzU7w4qaQIyWOSCpKn.html"
+    
+    if os.path.exists(file_path):
+        return FileResponse(file_path)
+    return {"error": "File not found"}
