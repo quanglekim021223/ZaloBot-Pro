@@ -4,7 +4,8 @@ import logging
 import json
 
 from zalobot.utils import verify_zalo_signature
-# from zalobot.services.order import process_order  # Sẽ import ở Day 3
+from zalobot.services.order import create_order
+from zalobot.services.zalo import send_message
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/zalo", tags=["zalo"])
@@ -28,14 +29,33 @@ async def process_webhook_background(body: dict):
             logger.warning("⚠️ No user_id found in webhook body")
             return
         
+        # Convert user_id to string
+        user_id = str(user_id)
+        
         logger.info(f"📩 Background Task: Handling message from user_id={user_id}, text='{text}'")
         
-        # TODO: Logic bán hàng sẽ viết ở đây
+        # Detect purchase intent
         if "mua" in text.lower():
             logger.info("👉 Detected purchase intent -> Create Order...")
-            # create_order(user_id=user_id, text=text)
-            # Call MoMo API to create payment link
-            # Send payment link to customer via Zalo API
+            
+            try:
+                # 1. Create order in database
+                order = create_order(user_id=user_id, amount=99000)
+                
+                # 2. Format response message
+                response_message = f"Created order #{order.id}. Price: {order.amount:,}đ. Please wait for payment link."
+                
+                # 3. Send message to user via Zalo API
+                success = await send_message(user_id=user_id, message=response_message)
+                
+                if success:
+                    logger.info(f"✅ Order #{order.id} created and message sent to user {user_id}")
+                else:
+                    logger.warning(f"⚠️ Order #{order.id} created but failed to send message to user {user_id}")
+                    
+            except Exception as e:
+                logger.error(f"❌ Error processing purchase for user {user_id}: {e}", exc_info=True)
+                # Don't raise - Zalo already got 200 OK
             
     except KeyError as e:
         logger.error(f"❌ Missing key in webhook body: {e}")
